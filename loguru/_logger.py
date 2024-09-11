@@ -126,7 +126,7 @@ start_time = aware_now()
 
 context = ContextVar("loguru_context", default={})
 
-Options: TypeAlias = Tuple[Any, ...]
+Options: TypeAlias = Tuple[Any, int, bool, bool, bool, bool, bool, list[Any], dict[str, Any]]
 
 
 class Core:
@@ -234,7 +234,19 @@ class Logger:
     You should not instantiate a |Logger| by yourself, use ``from loguru import logger`` instead.
     """
 
-    def __init__(self, core, exception, depth, record, lazy, colors, raw, capture, patchers, extra):
+    def __init__(
+        self,
+        core: Core,
+        exception,
+        depth: int,
+        record: bool,
+        lazy: bool,
+        colors: bool,
+        raw: bool,
+        capture: bool,
+        patchers: list[Any],
+        extra: dict[str, Any],
+    ):
         self._core: Core = core
         self._options: Options = (
             exception,
@@ -248,7 +260,7 @@ class Logger:
             extra,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<loguru.logger handlers=%r>" % list(self._core.handlers.values())
 
     def add(
@@ -1655,7 +1667,7 @@ class Logger:
         """
         self._change_activation(name, False)
 
-    def enable(self, name):
+    def enable(self, name: str | None) -> None:
         """Enable logging of messages coming from ``name`` module and its children.
 
         Logging is generally disabled by imported library using `Loguru`, hence this function
