@@ -1,25 +1,29 @@
+from __future__ import annotations
+
 import datetime
 import re
+from collections.abc import Callable
+from datetime import timedelta
 
 
 class Frequencies:
     @staticmethod
-    def hourly(t):
+    def hourly(t: datetime.datetime) -> datetime.datetime:
         dt = t + datetime.timedelta(hours=1)
         return dt.replace(minute=0, second=0, microsecond=0)
 
     @staticmethod
-    def daily(t):
+    def daily(t: datetime.datetime) -> datetime.datetime:
         dt = t + datetime.timedelta(days=1)
         return dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
     @staticmethod
-    def weekly(t):
+    def weekly(t: datetime.datetime) -> datetime.datetime:
         dt = t + datetime.timedelta(days=7 - t.weekday())
         return dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
     @staticmethod
-    def monthly(t):
+    def monthly(t: datetime.datetime) -> datetime.datetime:
         if t.month == 12:
             y, m = t.year + 1, 1
         else:
@@ -27,14 +31,14 @@ class Frequencies:
         return t.replace(year=y, month=m, day=1, hour=0, minute=0, second=0, microsecond=0)
 
     @staticmethod
-    def yearly(t):
+    def yearly(t: datetime.datetime) -> datetime.datetime:
         y = t.year + 1
         return t.replace(year=y, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-def parse_size(size):
+def parse_size(size: str) -> float | None:
     size = size.strip()
-    reg = re.compile(r"([e\+\-\.\d]+)\s*([kmgtpezy])?(i)?(b)", flags=re.I)
+    reg = re.compile(r"([e\+\-\.\d]+)\s*([kmgtpezy])?(i)?(b)", flags=re.IGNORECASE)
 
     match = reg.fullmatch(size)
 
@@ -44,17 +48,17 @@ def parse_size(size):
     s, u, i, b = match.groups()
 
     try:
-        s = float(s)
+        _s: float = float(s)
     except ValueError as e:
         raise ValueError("Invalid float value while parsing size: '%s'" % s) from e
 
-    u = "kmgtpezy".index(u.lower()) + 1 if u else 0
-    i = 1024 if i else 1000
-    b = {"b": 8, "B": 1}[b] if b else 1
-    return s * i**u / b
+    _u: int = "kmgtpezy".index(u.lower()) + 1 if u else 0
+    _i: int = 1024 if i else 1000
+    _b: int = {"b": 8, "B": 1}[b] if b else 1
+    return _s * _i**_u / _b
 
 
-def parse_duration(duration):
+def parse_duration(duration: str) -> None | timedelta:
     duration = duration.strip()
     reg = r"(?:([e\+\-\.\d]+)\s*([a-z]+)[\s\,]*)"
 
@@ -70,19 +74,19 @@ def parse_duration(duration):
         ("us|microseconds?", 0.000001),
     ]
 
-    if not re.fullmatch(reg + "+", duration, flags=re.I):
+    if not re.fullmatch(reg + "+", duration, flags=re.IGNORECASE):
         return None
 
     seconds = 0
 
-    for value, unit in re.findall(reg, duration, flags=re.I):
+    for value, unit in re.findall(reg, duration, flags=re.IGNORECASE):
         try:
             value = float(value)
         except ValueError as e:
             raise ValueError("Invalid float value while parsing duration: '%s'" % value) from e
 
         try:
-            unit = next(u for r, u in units if re.fullmatch(r, unit, flags=re.I))
+            unit = next(u for r, u in units if re.fullmatch(r, unit, flags=re.IGNORECASE))
         except StopIteration:
             raise ValueError("Invalid unit value while parsing duration: '%s'" % unit) from None
 
@@ -91,7 +95,7 @@ def parse_duration(duration):
     return datetime.timedelta(seconds=seconds)
 
 
-def parse_frequency(frequency):
+def parse_frequency(frequency: str) -> None | Callable[[datetime.datetime], datetime.datetime]:
     frequencies = {
         "hourly": Frequencies.hourly,
         "daily": Frequencies.daily,
@@ -100,10 +104,10 @@ def parse_frequency(frequency):
         "yearly": Frequencies.yearly,
     }
     frequency = frequency.strip().lower()
-    return frequencies.get(frequency, None)
+    return frequencies.get(frequency)
 
 
-def parse_day(day):
+def parse_day(day: str) -> int | None:
     days = {
         "monday": 0,
         "tuesday": 1,
@@ -117,18 +121,20 @@ def parse_day(day):
     if day in days:
         return days[day]
     if day.startswith("w") and day[1:].isdigit():
-        day = int(day[1:])
-        if not 0 <= day < 7:
-            raise ValueError("Invalid weekday value while parsing day (expected [0-6]): '%d'" % day)
+        _day = int(day[1:])
+        if not 0 <= _day < 7:
+            raise ValueError(
+                "Invalid weekday value while parsing day (expected [0-6]): '%d'" % _day
+            )
     else:
-        day = None
+        _day = None
 
-    return day
+    return _day
 
 
-def parse_time(time):
+def parse_time(time: str) -> None | datetime.time:
     time = time.strip()
-    reg = re.compile(r"^[\d\.\:]+\s*(?:[ap]m)?$", flags=re.I)
+    reg = re.compile(r"^[\d\.\:]+\s*(?:[ap]m)?$", flags=re.IGNORECASE)
 
     if not reg.match(time):
         return None
@@ -155,9 +161,9 @@ def parse_time(time):
     raise ValueError("Unrecognized format while parsing time: '%s'" % time)
 
 
-def parse_daytime(daytime):
+def parse_daytime(daytime: str) -> None | tuple[int | None, datetime.time | None]:
     daytime = daytime.strip()
-    reg = re.compile(r"^(.*?)\s+at\s+(.*)$", flags=re.I)
+    reg = re.compile(r"^(.*?)\s+at\s+(.*)$", flags=re.IGNORECASE)
 
     match = reg.match(daytime)
     if match:
