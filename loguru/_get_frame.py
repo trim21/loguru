@@ -1,8 +1,10 @@
 import sys
 from sys import exc_info
+from types import FrameType
+from typing import Callable
 
 
-def get_frame_fallback(n):
+def get_frame_fallback(n) -> FrameType | None:
     try:
         raise Exception
     except Exception:
@@ -12,7 +14,7 @@ def get_frame_fallback(n):
         return frame
 
 
-def load_get_frame_function():
+def load_get_frame_function() -> Callable[[int], FrameType | None]:
     if hasattr(sys, "_getframe"):
         get_frame = sys._getframe
     else:

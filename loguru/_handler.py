@@ -5,6 +5,7 @@ import os
 import threading
 from contextlib import contextmanager
 from threading import Thread
+from typing import Any
 
 from ._colorizer import Colorizer
 from ._locks_machinery import create_handler_lock
@@ -26,6 +27,7 @@ def memoize(function):
 
 class Message(str):
     __slots__ = ("record",)
+    record: Any
 
 
 class Handler:
@@ -81,12 +83,11 @@ class Handler:
                 self._memoize_dynamic_format = memoize(prepare_colored_format)
             else:
                 self._memoize_dynamic_format = memoize(prepare_stripped_format)
+        elif self._colorize:
+            for level_name in self._levels_ansi_codes:
+                self.update_format(level_name)
         else:
-            if self._colorize:
-                for level_name in self._levels_ansi_codes:
-                    self.update_format(level_name)
-            else:
-                self._decolorized_format = self._formatter.strip()
+            self._decolorized_format = self._formatter.strip()
 
         if self._enqueue:
             if self._multiprocessing_context is None:
@@ -174,22 +175,21 @@ class Handler:
                     formatter_record["message"] = coloring_message
                     formatted = precomputed_format.format_map(formatter_record)
 
+            elif not self._colorize:
+                precomputed_format = self._decolorized_format
+                formatted = precomputed_format.format_map(formatter_record)
+            elif colored_message is None:
+                ansi_level = self._levels_ansi_codes[level_id]
+                precomputed_format = self._precolorized_formats[level_id]
+                formatted = precomputed_format.format_map(formatter_record)
             else:
-                if not self._colorize:
-                    precomputed_format = self._decolorized_format
-                    formatted = precomputed_format.format_map(formatter_record)
-                elif colored_message is None:
-                    ansi_level = self._levels_ansi_codes[level_id]
-                    precomputed_format = self._precolorized_formats[level_id]
-                    formatted = precomputed_format.format_map(formatter_record)
-                else:
-                    ansi_level = self._levels_ansi_codes[level_id]
-                    precomputed_format = self._precolorized_formats[level_id]
-                    coloring_message = self._formatter.make_coloring_message(
-                        record["message"], ansi_level=ansi_level, colored_message=colored_message
-                    )
-                    formatter_record["message"] = coloring_message
-                    formatted = precomputed_format.format_map(formatter_record)
+                ansi_level = self._levels_ansi_codes[level_id]
+                precomputed_format = self._precolorized_formats[level_id]
+                coloring_message = self._formatter.make_coloring_message(
+                    record["message"], ansi_level=ansi_level, colored_message=colored_message
+                )
+                formatter_record["message"] = coloring_message
+                formatted = precomputed_format.format_map(formatter_record)
 
             if self._serialize:
                 formatted = self._serialize_record(formatted, record)

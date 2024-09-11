@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import builtins
 import os
 import sys
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from colorama.ansitowin32 import StreamWrapper
 
 
-def should_colorize(stream):
+def should_colorize(stream: Any) -> bool:
     if stream is None:
         return False
 
@@ -38,7 +44,7 @@ def should_colorize(stream):
         return False
 
 
-def should_wrap(stream):
+def should_wrap(stream: Any) -> bool:
     if os.name != "nt":
         return False
 
@@ -61,7 +67,7 @@ def should_wrap(stream):
         return True
 
 
-def wrap(stream):
+def wrap(stream: Any) -> "StreamWrapper":
     from colorama import AnsiToWin32
 
     return AnsiToWin32(stream, convert=True, strip=True, autoreset=False).stream

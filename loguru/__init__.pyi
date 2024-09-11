@@ -1,5 +1,4 @@
-"""
-.. |str| replace:: :class:`str`
+""".. |str| replace:: :class:`str`
 .. |namedtuple| replace:: :func:`namedtuple<collections.namedtuple>`
 .. |dict| replace:: :class:`dict`
 
@@ -89,33 +88,26 @@ For more details, go to official |documentation of loguru-mypy|_.
 
 import sys
 from asyncio import AbstractEventLoop
-from datetime import datetime, time, timedelta
+from collections.abc import Awaitable, Callable, Generator, Sequence
+from datetime import time, timedelta
 from logging import Handler
 from multiprocessing.context import BaseContext
 from os import PathLike
+from re import Pattern
 from types import TracebackType
 from typing import (
     Any,
-    Awaitable,
     BinaryIO,
-    Callable,
     ContextManager,
-    Dict,
-    Generator,
     Generic,
-    List,
     NamedTuple,
     NewType,
-    Optional,
-    Pattern,
-    Sequence,
     TextIO,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     overload,
 )
+
+from ._types import Record
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, TypedDict
@@ -126,16 +118,16 @@ PathLikeStr = PathLike[str]
 
 _T = TypeVar("_T")
 _F = TypeVar("_F", bound=Callable[..., Any])
-ExcInfo = Tuple[Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]]
+ExcInfo = tuple[type[BaseException] | None, BaseException | None, TracebackType | None]
 
 class _GeneratorContextManager(ContextManager[_T], Generic[_T]):
     def __call__(self, func: _F) -> _F: ...
     def __exit__(
         self,
-        typ: Optional[Type[BaseException]],
-        value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> Optional[bool]: ...
+        typ: type[BaseException] | None,
+        value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None: ...
 
 Catcher = NewType("Catcher", _GeneratorContextManager[None])
 Contextualizer = NewType("Contextualizer", _GeneratorContextManager[None])
@@ -147,68 +139,27 @@ class Level(NamedTuple):
     color: str
     icon: str
 
-class _RecordAttribute:
-    def __repr__(self) -> str: ...
-    def __format__(self, spec: str) -> str: ...
-
-class RecordFile(_RecordAttribute):
-    name: str
-    path: str
-
-class RecordLevel(_RecordAttribute):
-    name: str
-    no: int
-    icon: str
-
-class RecordThread(_RecordAttribute):
-    id: int
-    name: str
-
-class RecordProcess(_RecordAttribute):
-    id: int
-    name: str
-
-class RecordException(NamedTuple):
-    type: Optional[Type[BaseException]]
-    value: Optional[BaseException]
-    traceback: Optional[TracebackType]
-
-class Record(TypedDict):
-    elapsed: timedelta
-    exception: Optional[RecordException]
-    extra: Dict[Any, Any]
-    file: RecordFile
-    function: str
-    level: RecordLevel
-    line: int
-    message: str
-    module: str
-    name: Union[str, None]
-    process: RecordProcess
-    thread: RecordThread
-    time: datetime
-
 class Message(str):
     record: Record
 
 class Writable(Protocol):
     def write(self, message: Message) -> None: ...
 
-FilterDict = Dict[Union[str, None], Union[str, int, bool]]
+FilterDict = dict[str | None, str | int | bool]
 FilterFunction = Callable[[Record], bool]
 FormatFunction = Callable[[Record], str]
 PatcherFunction = Callable[[Record], None]
 RotationFunction = Callable[[Message, TextIO], bool]
-RetentionFunction = Callable[[List[str]], None]
+RetentionFunction = Callable[[list[str]], None]
 CompressionFunction = Callable[[str], None]
 
 # Actually unusable because TypedDict can't allow extra keys: python/mypy#4617
 class _HandlerConfig(TypedDict, total=False):
-    sink: Union[str, PathLikeStr, TextIO, Writable, Callable[[Message], None], Handler]
-    level: Union[str, int]
-    format: Union[str, FormatFunction]
-    filter: Optional[Union[str, FilterFunction, FilterDict]]
-    colorize: Optional[bool]
+    sink: str | PathLikeStr | TextIO | Writable | Callable[[Message], None] | Handler
+    level: str | int
+    format: str | FormatFunction
+    filter: str | FilterFunction | FilterDict | None
+    colorize: bool | None
     serialize: bool
     backtrace: bool
     diagnose: bool
@@ -221,23 +172,23 @@ class LevelConfig(TypedDict, total=False):
     color: str
     icon: str
 
-ActivationConfig = Tuple[Union[str, None], bool]
+ActivationConfig = tuple[str | None, bool]
 
 class Logger:
     @overload
     def add(
         self,
-        sink: Union[TextIO, Writable, Callable[[Message], None], Handler],
+        sink: TextIO | Writable | Callable[[Message], None] | Handler,
         *,
-        level: Union[str, int] = ...,
-        format: Union[str, FormatFunction] = ...,
-        filter: Optional[Union[str, FilterFunction, FilterDict]] = ...,
-        colorize: Optional[bool] = ...,
+        level: str | int = ...,
+        format: str | FormatFunction = ...,
+        filter: str | FilterFunction | FilterDict | None = ...,
+        colorize: bool | None = ...,
         serialize: bool = ...,
         backtrace: bool = ...,
         diagnose: bool = ...,
         enqueue: bool = ...,
-        context: Optional[Union[str, BaseContext]] = ...,
+        context: str | BaseContext | None = ...,
         catch: bool = ...,
     ) -> int: ...
     @overload
@@ -245,36 +196,36 @@ class Logger:
         self,
         sink: Callable[[Message], Awaitable[None]],
         *,
-        level: Union[str, int] = ...,
-        format: Union[str, FormatFunction] = ...,
-        filter: Optional[Union[str, FilterFunction, FilterDict]] = ...,
-        colorize: Optional[bool] = ...,
+        level: str | int = ...,
+        format: str | FormatFunction = ...,
+        filter: str | FilterFunction | FilterDict | None = ...,
+        colorize: bool | None = ...,
         serialize: bool = ...,
         backtrace: bool = ...,
         diagnose: bool = ...,
         enqueue: bool = ...,
-        context: Optional[Union[str, BaseContext]] = ...,
+        context: str | BaseContext | None = ...,
         catch: bool = ...,
-        loop: Optional[AbstractEventLoop] = ...,
+        loop: AbstractEventLoop | None = ...,
     ) -> int: ...
     @overload
     def add(
         self,
-        sink: Union[str, PathLikeStr],
+        sink: str | PathLikeStr,
         *,
-        level: Union[str, int] = ...,
-        format: Union[str, FormatFunction] = ...,
-        filter: Optional[Union[str, FilterFunction, FilterDict]] = ...,
-        colorize: Optional[bool] = ...,
+        level: str | int = ...,
+        format: str | FormatFunction = ...,
+        filter: str | FilterFunction | FilterDict | None = ...,
+        colorize: bool | None = ...,
         serialize: bool = ...,
         backtrace: bool = ...,
         diagnose: bool = ...,
         enqueue: bool = ...,
-        context: Optional[Union[str, BaseContext]] = ...,
+        context: str | BaseContext | None = ...,
         catch: bool = ...,
-        rotation: Optional[Union[str, int, time, timedelta, RotationFunction]] = ...,
-        retention: Optional[Union[str, int, timedelta, RetentionFunction]] = ...,
-        compression: Optional[Union[str, CompressionFunction]] = ...,
+        rotation: str | int | time | timedelta | RotationFunction | None = ...,
+        retention: str | int | timedelta | RetentionFunction | None = ...,
+        compression: str | CompressionFunction | None = ...,
         delay: bool = ...,
         watch: bool = ...,
         mode: str = ...,
@@ -282,17 +233,17 @@ class Logger:
         encoding: str = ...,
         **kwargs: Any,
     ) -> int: ...
-    def remove(self, handler_id: Optional[int] = ...) -> None: ...
+    def remove(self, handler_id: int | None = ...) -> None: ...
     def complete(self) -> AwaitableCompleter: ...
     @overload
     def catch(
         self,
-        exception: Union[Type[BaseException], Tuple[Type[BaseException], ...]] = ...,
+        exception: type[BaseException] | tuple[type[BaseException], ...] = ...,
         *,
-        level: Union[str, int] = ...,
+        level: str | int = ...,
         reraise: bool = ...,
-        onerror: Optional[Callable[[BaseException], None]] = ...,
-        exclude: Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]] = ...,
+        onerror: Callable[[BaseException], None] | None = ...,
+        exclude: type[BaseException] | tuple[type[BaseException], ...] | None = ...,
         default: Any = ...,
         message: str = ...,
     ) -> Catcher: ...
@@ -301,7 +252,7 @@ class Logger:
     def opt(
         self,
         *,
-        exception: Optional[Union[bool, ExcInfo, BaseException]] = ...,
+        exception: bool | ExcInfo | BaseException | None = ...,
         record: bool = ...,
         lazy: bool = ...,
         colors: bool = ...,
@@ -310,34 +261,34 @@ class Logger:
         depth: int = ...,
         ansi: bool = ...,
     ) -> Logger: ...
-    def bind(self, **kwargs: Any) -> Logger: ...  # noqa: N805
-    def contextualize(self, **kwargs: Any) -> Contextualizer: ...  # noqa: N805
+    def bind(self, **kwargs: Any) -> Logger: ...
+    def contextualize(self, **kwargs: Any) -> Contextualizer: ...
     def patch(self, patcher: PatcherFunction) -> Logger: ...
     @overload
     def level(self, name: str) -> Level: ...
     @overload
     def level(
-        self, name: str, no: int = ..., color: Optional[str] = ..., icon: Optional[str] = ...
+        self, name: str, no: int = ..., color: str | None = ..., icon: str | None = ...
     ) -> Level: ...
     @overload
     def level(
         self,
         name: str,
-        no: Optional[int] = ...,
-        color: Optional[str] = ...,
-        icon: Optional[str] = ...,
+        no: int | None = ...,
+        color: str | None = ...,
+        icon: str | None = ...,
     ) -> Level: ...
-    def disable(self, name: Union[str, None]) -> None: ...
-    def enable(self, name: Union[str, None]) -> None: ...
+    def disable(self, name: str | None) -> None: ...
+    def enable(self, name: str | None) -> None: ...
     def configure(
         self,
         *,
-        handlers: Sequence[Dict[str, Any]] = ...,
-        levels: Optional[Sequence[LevelConfig]] = ...,
-        extra: Optional[Dict[Any, Any]] = ...,
-        patcher: Optional[PatcherFunction] = ...,
-        activation: Optional[Sequence[ActivationConfig]] = ...,
-    ) -> List[int]: ...
+        handlers: Sequence[dict[str, Any]] = ...,
+        levels: Sequence[LevelConfig] | None = ...,
+        extra: dict[Any, Any] | None = ...,
+        patcher: PatcherFunction | None = ...,
+        activation: Sequence[ActivationConfig] | None = ...,
+    ) -> list[int]: ...
     # @staticmethod cannot be used with @overload in mypy (python/mypy#7781).
     # However Logger is not exposed and logger is an instance of Logger
     # so for type checkers it is all the same whether it is defined here
@@ -345,21 +296,21 @@ class Logger:
     @overload
     def parse(
         self,
-        file: Union[str, PathLikeStr, TextIO],
-        pattern: Union[str, Pattern[str]],
+        file: str | PathLikeStr | TextIO,
+        pattern: str | Pattern[str],
         *,
-        cast: Union[Dict[str, Callable[[str], Any]], Callable[[Dict[str, str]], None]] = ...,
+        cast: dict[str, Callable[[str], Any]] | Callable[[dict[str, str]], None] = ...,
         chunk: int = ...,
-    ) -> Generator[Dict[str, Any], None, None]: ...
+    ) -> Generator[dict[str, Any], None, None]: ...
     @overload
     def parse(
         self,
         file: BinaryIO,
-        pattern: Union[bytes, Pattern[bytes]],
+        pattern: bytes | Pattern[bytes],
         *,
-        cast: Union[Dict[str, Callable[[bytes], Any]], Callable[[Dict[str, bytes]], None]] = ...,
+        cast: dict[str, Callable[[bytes], Any]] | Callable[[dict[str, bytes]], None] = ...,
         chunk: int = ...,
-    ) -> Generator[Dict[str, Any], None, None]: ...
+    ) -> Generator[dict[str, Any], None, None]: ...
     @overload
     def trace(__self, __message: str, *args: Any, **kwargs: Any) -> None: ...  # noqa: N805
     @overload
@@ -393,11 +344,9 @@ class Logger:
     @overload
     def exception(__self, __message: Any) -> None: ...  # noqa: N805
     @overload
-    def log(
-        self, __level: Union[int, str], __message: str, *args: Any, **kwargs: Any  # noqa: N805
-    ) -> None: ...
+    def log(self, __level: int | str, __message: str, *args: Any, **kwargs: Any) -> None: ...
     @overload
-    def log(self, __level: Union[int, str], __message: Any) -> None: ...  # noqa: N805
+    def log(self, __level: int | str, __message: Any) -> None: ...
     def start(self, *args: Any, **kwargs: Any) -> int: ...
     def stop(self, *args: Any, **kwargs: Any) -> None: ...
 

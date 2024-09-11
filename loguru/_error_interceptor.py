@@ -1,16 +1,22 @@
 import sys
 import traceback
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._handler import Message
 
 
 class ErrorInterceptor:
-    def __init__(self, should_catch, handler_id):
+    def __init__(self, should_catch: bool, handler_id: int):
         self._should_catch = should_catch
         self._handler_id = handler_id
 
-    def should_catch(self):
+    def should_catch(self) -> bool:
         return self._should_catch
 
-    def print(self, record=None, *, exception=None):
+    def print(
+        self, record: Message | None = None, *, exception: BaseException | None = None
+    ) -> None:
         if not sys.stderr:
             return
 

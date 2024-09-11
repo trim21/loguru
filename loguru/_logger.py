@@ -89,6 +89,7 @@ import functools
 import logging
 import re
 import sys
+import threading
 import warnings
 from asyncio import get_running_loop
 from contextvars import ContextVar
@@ -98,7 +99,7 @@ from multiprocessing.context import BaseContext
 from os import PathLike
 from os.path import basename, splitext
 from threading import current_thread
-from typing import NamedTuple
+from typing import Any, NamedTuple, Tuple, TypeAlias, overload
 
 from . import _colorama, _defaults, _filters
 from ._better_exceptions import ExceptionFormatter
@@ -111,6 +112,7 @@ from ._handler import Handler
 from ._locks_machinery import create_logger_lock
 from ._recattrs import RecordException, RecordFile, RecordLevel, RecordProcess, RecordThread
 from ._simple_sinks import AsyncSink, CallableSink, StandardSink, StreamSink
+from ._types import Record
 
 
 class Level(NamedTuple):
@@ -123,6 +125,8 @@ class Level(NamedTuple):
 start_time = aware_now()
 
 context = ContextVar("loguru_context", default={})
+
+Options: TypeAlias = Tuple[Any, ...]
 
 
 class Core:
@@ -171,8 +175,8 @@ class Core:
                 _defaults.LOGURU_CRITICAL_ICON,
             ),
         ]
-        self.levels = {level.name: level for level in levels}
-        self.levels_ansi_codes = {
+        self.levels: dict[str, Level] = {level.name: level for level in levels}
+        self.levels_ansi_codes: dict[str | None, str] = {
             **{name: Colorizer.ansify(level.color) for name, level in self.levels.items()},
             None: "",
         }
@@ -180,29 +184,29 @@ class Core:
         # Cache used internally to quickly access level attributes based on their name or severity.
         # It can also contain integers as keys, it serves to avoid calling "isinstance()" repeatedly
         # when "logger.log()" is used.
-        self.levels_lookup = {
+        self.levels_lookup: dict[str | int, tuple[Any, ...]] = {
             name: (name, name, level.no, level.icon) for name, level in self.levels.items()
         }
 
-        self.handlers_count = 0
+        self.handlers_count: int = 0
         self.handlers = {}
 
-        self.extra = {}
+        self.extra: dict[str, Any] = {}
         self.patcher = None
 
-        self.min_level = float("inf")
+        self.min_level: float = float("inf")
         self.enabled = {}
         self.activation_list = []
-        self.activation_none = True
+        self.activation_none: bool = True
 
-        self.lock = create_logger_lock()
+        self.lock: threading.Lock = create_logger_lock()
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
         state["lock"] = None
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
         self.lock = create_logger_lock()
 
@@ -231,8 +235,18 @@ class Logger:
     """
 
     def __init__(self, core, exception, depth, record, lazy, colors, raw, capture, patchers, extra):
-        self._core = core
-        self._options = (exception, depth, record, lazy, colors, raw, capture, patchers, extra)
+        self._core: Core = core
+        self._options: Options = (
+            exception,
+            depth,
+            record,
+            lazy,
+            colors,
+            raw,
+            capture,
+            patchers,
+            extra,
+        )
 
     def __repr__(self):
         return "<loguru.logger handlers=%r>" % list(self._core.handlers.values())
@@ -1013,7 +1027,7 @@ class Logger:
 
         return handler_id
 
-    def remove(self, handler_id=None):
+    def remove(self, handler_id: int | None = None) -> None:
         """Remove a previously added handler and stop sending logs to its sink.
 
         Parameters
@@ -1910,7 +1924,15 @@ class Logger:
                 buffer = buffer[end:]
                 yield from matches[:-1]
 
-    def _log(self, level, from_decorator, options, message, args, kwargs):
+    def _log(
+        self,
+        level: str | int,
+        from_decorator: bool,
+        options: Options,
+        message: Any,
+        args: Any,
+        kwargs: Any,
+    ):
         core = self._core
 
         if not core.handlers:
@@ -1986,7 +2008,7 @@ class Logger:
         else:
             exception = None
 
-        log_record = {
+        log_record: Record = {
             "elapsed": elapsed,
             "exception": exception,
             "extra": {**core.extra, **context.get(), **extra},
@@ -2071,7 +2093,13 @@ class Logger:
         options = (True,) + __self._options[1:]
         __self._log("ERROR", False, options, __message, args, kwargs)
 
-    def log(__self, __level, __message, *args, **kwargs):  # noqa: N805
+    @overload
+    def log(self, __level: int | str, __message: Any) -> None: ...
+
+    @overload
+    def log(self, __level: int | str, __message: str, *args: Any, **kwargs: Any) -> None: ...
+
+    def log(__self, __level: int | str, __message: Any, *args: Any, **kwargs: Any):  # noqa: N805
         r"""Log ``message.format(*args, **kwargs)`` with severity ``level``."""
         __self._log(__level, False, __self._options, __message, args, kwargs)
 
