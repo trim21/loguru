@@ -4,6 +4,7 @@ import datetime
 import re
 from collections.abc import Callable
 from datetime import timedelta
+from typing import cast
 
 
 class Frequencies:
@@ -55,7 +56,9 @@ def parse_size(size: str) -> float | None:
     _u: int = "kmgtpezy".index(u.lower()) + 1 if u else 0
     _i: int = 1024 if i else 1000
     _b: int = {"b": 8, "B": 1}[b] if b else 1
-    return _s * _i**_u / _b
+
+    # not sure why mypy think this is Any
+    return cast(float, _s * _i**_u / _b)
 
 
 def parse_duration(duration: str) -> None | timedelta:
